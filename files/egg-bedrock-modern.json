@@ -1,0 +1,38 @@
+{
+  "name": "Bedrock Modern",
+  "author": "your@email.com",
+  "description": "Minecraft Bedrock Dedicated Server with Playit.gg tunneling, RCON console bridge, and Git config sync.",
+  "features": ["eula", "bedrock_rcon", "playit_tunnel"],
+  "docker_images": {
+    "ghcr.io/parkervcp/yolks:debian": "ghcr.io/parkervcp/yolks:debian"
+  },
+  "file_denylist": [],
+  "startup": "if [ -f /home/container/bds-control ]; then ./bds-control; else ./bedrock_server; fi",
+  "config": {
+    "files": "{\"server.properties\":{\"parser\":\"properties\",\"find\":{\"server-name\":\"{{server.build.env.SERVER_NAME}}\",\"gamemode\":\"{{server.build.env.GAMEMODE}}\",\"difficulty\":\"{{server.build.env.DIFFICULTY}}\",\"max-players\":\"{{server.build.env.MAX_PLAYERS}}\",\"online-mode\":\"{{server.build.env.ONLINE_MODE}}\",\"server-port\":\"{{server.build.env.SERVER_PORT}}\",\"level-name\":\"{{server.build.env.LEVEL_NAME}}\",\"level-seed\":\"{{server.build.env.LEVEL_SEED}}\"}},\"permissions.json\":{\"parser\":\"json\"},\"allowlist.json\":{\"parser\":\"json\"}}",
+    "startup": "{\"done\":\"Server started.\"}",
+    "logs": "{\"custom\":false,\"location\":\"logs/latest.log\"}",
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\n\napt update && apt install -y unzip curl jq\nmkdir -p /home/container\ncd /home/container\n\nBEDROCK_URL=\"https://www.minecraft.net/bedrockdedicatedserver/bin-linux-preview/bedrock-server-1.26.20.28.zip\"\nif [ ! -f \"bedrock_server\" ]; then\n  curl -sSL -o bedrock.zip \"$BEDROCK_URL\"\n  unzip -qo bedrock.zip\n  rm bedrock.zip\n  chmod +x bedrock_server\nfi\n\n# mcrcon for console bridge\ncurl -sSL https://github.com/Tiiffi/mcrcon/releases/download/v0.7.2/mcrcon-0.7.2-linux-x86-64.tar.gz | tar xz\nmv mcrcon-0.7.2-linux-x86-64/mcrcon ./\nchmod +x mcrcon\nrm -rf mcrcon-*\n\n# Playit agent (optional, runs inside container)\ncurl -sSL -o playit-agent \"https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64\"\nchmod +x playit-agent\n\n# Create bds-control wrapper\ncat > bds-control <<'WRAPPER'\n#!/bin/bash\nset -m\n\n# Generate server.properties from variables\ncat > server.properties <<EOF\nserver-name=${SERVER_NAME}\ngamemode=${GAMEMODE}\ndifficulty=${DIFFICULTY}\nmax-players=${MAX_PLAYERS}\nonline-mode=${ONLINE_MODE}\nserver-port=${SERVER_PORT}\nlevel-name=${LEVEL_NAME}\nlevel-seed=${LEVEL_SEED}\nEOF\n\n# If PLAYIT enabled, start playit agent in background\nif [[ \"${PLAYIT_ENABLED}\" == \"true\" ]]; then\n  echo \"Creating playit tunnel...\"\n  cat > playit.toml <<TOML\nsecret = \"${PLAYIT_SECRET}\"\n\n[tunnels.udp-19132]\ntype = \"udp\"\nlocal_address = \"127.0.0.1:${SERVER_PORT}\"\nremote_port = 0\nTOML\n  ./playit-agent --config playit.toml > playit.log 2>&1 &\n  PLAYIT_PID=$!\n  sleep 5\n  # Grab public address\n  TUNNEL_LINE=$(grep -m1 'assigned address' playit.log || echo \"Tunnel active but address not yet shown\")\n  echo \"Join Address: $TUNNEL_LINE\"\nfi\n\n# Start Bedrock server in background, pipe stdout/stderr to container\n./bedrock_server 2>&1 &\nSERVER_PID=$!\n\n# Console bridge: read stdin and send via mcrcon\nsleep 5\nwhile IFS= read -r cmd; do\n  if [ -n \"$cmd\" ]; then\n    echo \"$cmd\" | ./mcrcon -H 127.0.0.1 -P 25575 -p \"${RCON_PASSWORD:-minecraft}\" || true\n  fi\ndone < /dev/stdin &\nBRIDGE_PID=$!\n\n# Wait for server to exit, then clean up\nwait $SERVER_PID\nkill $PLAYIT_PID 2>/dev/null || true\nkill $BRIDGE_PID 2>/dev/null || true\nWRAPPER\nchmod +x bds-control\n\n# Git config sync\nif [ ! -z \"${GIT_REPO}\" ]; then\n  git clone ${GIT_REPO} /tmp/git-config\n  cp -r /tmp/git-config/bds-config/* /home/container/\n  rm -rf /tmp/git-config\nfi\n\necho \"Installation complete\"",
+      "container": "ghcr.io/parkervcp/yolks:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    { "name": "Server Name", "description": "Appears in server list", "env_variable": "SERVER_NAME", "default_value": "My Bedrock Server", "user_viewable": true, "user_editable": true, "rules": "required|string|max:60" },
+    { "name": "Gamemode", "description": "survival, creative, adventure", "env_variable": "GAMEMODE", "default_value": "survival", "user_viewable": true, "user_editable": true, "rules": "required|string|in:survival,creative,adventure" },
+    { "name": "Difficulty", "description": "peaceful, easy, normal, hard", "env_variable": "DIFFICULTY", "default_value": "normal", "user_viewable": true, "user_editable": true, "rules": "required|string|in:peaceful,easy,normal,hard" },
+    { "name": "Max Players", "description": "Maximum players", "env_variable": "MAX_PLAYERS", "default_value": "10", "user_viewable": true, "user_editable": true, "rules": "required|integer|min:1" },
+    { "name": "Online Mode", "description": "Authenticate players with Xbox Live", "env_variable": "ONLINE_MODE", "default_value": "true", "user_viewable": true, "user_editable": true, "rules": "required|string|in:true,false" },
+    { "name": "Server Port", "description": "UDP port (internal, mapped by node)", "env_variable": "SERVER_PORT", "default_value": "19132", "user_viewable": true, "user_editable": true, "rules": "required|integer|between:1024,65535" },
+    { "name": "Level Name", "description": "World folder name", "env_variable": "LEVEL_NAME", "default_value": "Bedrock level", "user_viewable": true, "user_editable": true, "rules": "string|max:50" },
+    { "name": "Level Seed", "description": "World seed", "env_variable": "LEVEL_SEED", "default_value": "", "user_viewable": true, "user_editable": true, "rules": "nullable|string" },
+    { "name": "RCON Password", "description": "Internal RCON password", "env_variable": "RCON_PASSWORD", "default_value": "change_me", "user_viewable": false, "user_editable": false, "rules": "required|string" },
+    { "name": "Playit Enabled", "description": "Create automatic Playit.gg tunnel", "env_variable": "PLAYIT_ENABLED", "default_value": "false", "user_viewable": true, "user_editable": true, "rules": "required|string|in:true,false" },
+    { "name": "Playit Secret", "description": "Your Playit.gg secret key", "env_variable": "PLAYIT_SECRET", "default_value": "", "user_viewable": true, "user_editable": true, "rules": "nullable|string|required_if:PLAYIT_ENABLED,true" },
+    { "name": "Git Repo (config sync)", "description": "Clone repo with /bds-config folder", "env_variable": "GIT_REPO", "default_value": "", "user_viewable": true, "user_editable": true, "rules": "nullable|url" }
+  ]
+}
