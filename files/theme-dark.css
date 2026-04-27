@@ -1,0 +1,94 @@
+/* Dark modern theme for Pterodactyl Panel */
+:root {
+  --bg-dark: #121212;
+  --surface-1: #1e1e1e;
+  --surface-2: #2c2c2c;
+  --primary: #4caf50;
+  --primary-hover: #388e3c;
+  --text: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --border: #333;
+  --danger: #f44336;
+  --warning: #ff9800;
+}
+
+/* --- Globals --- */
+body, .app, .main-wrapper {
+  background-color: var(--bg-dark) !important;
+  color: var(--text) !important;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+}
+
+a { color: var(--primary); }
+a:hover { color: var(--primary-hover); }
+
+/* Cards / Boxes / Modals */
+.card, .box, .modal-content, .nav-tabs .nav-link.active, .table {
+  background-color: var(--surface-1) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+.btn-primary:hover {
+  background-color: var(--primary-hover) !important;
+}
+.btn-danger { background-color: var(--danger) !important; border-color: var(--danger) !important; }
+.btn-warning { background-color: var(--warning) !important; border-color: var(--warning) !important; }
+
+/* Navigation */
+.navbar-dark, .navbar-masthead, .sidebar {
+  background-color: #0a0a0a !important;
+}
+.nav-link { color: var(--text-secondary) !important; }
+.nav-link.active, .nav-link:hover { color: var(--text) !important; background-color: var(--surface-2) !important; }
+
+/* Form elements */
+input, textarea, select {
+  background-color: var(--surface-2) !important;
+  color: #fff !important;
+  border: 1px solid var(--border) !important;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--primary) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(76,175,80,0.2) !important;
+}
+
+/* File Manager highlight */
+.ace_editor {
+  background-color: var(--surface-1) !important;
+}
+
+/* Console area */
+.console {
+  background-color: #000 !important;
+  color: #b0bec5 !important;
+  font-family: 'Fira Code', monospace;
+}
+
+/* Graph / dashboard widgets */
+.chart-container, .stat-box {
+  background-color: var(--surface-1) !important;
+}
+
+/* Mobile tweaks */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100% !important;
+    position: relative;
+  }
+  .main-content {
+    margin-left: 0 !important;
+  }
+}
+
+/* Custom Minecraft accent on login */
+.login-logo:before {
+  content: "⛏️ ";
+  font-size: 2.5rem;
+}
